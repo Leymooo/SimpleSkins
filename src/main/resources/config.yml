@@ -1,0 +1,27 @@
+messages:
+  no-permission: "&4You don't have the permission to set skin"
+  skin-not-found: "&4No skin with provided name was found."
+  #If player does not have skin or default is used
+  skin-update-error: "&4Can't update your skin."
+  skin-changed: "&2You received your new skin! Plese rejoin to server to see your new skin"
+  help: "&f--------------- &aSimpleSkins &f--------------- \n
+        &6/skin &a<name> &r- &6Set skin\n
+        &6/skin &aupdate &r - &6Update your skin\n
+        &6/skin &areset &r - &6Reset your skin//"
+  working: "&4We already working to get your skin. Please wait"
+  fetching: "&aFetching new skin. Please wait"
+#If true player need to have 'simpleskins.skin' permission to use /skin command
+use-permission: false
+# Here you can specify default skins for player who do not have a skin
+# The entries from this list will be selected in random order.
+#
+# This list should either contain the UUID or UserName of the skin owner.
+#
+# Lists are created like this:
+#default-skins:
+#  - 0aaa2c13-922a-411b-b655-9b8c08404695
+#  - 069a79f4-44e9-4726-a5be-fca90e38aaf5
+#  - Leymooo
+#
+# If this list is empty no skin will be selected
+default-skins: []
