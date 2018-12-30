@@ -27,6 +27,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
 
 import net.kyori.text.serializer.ComponentSerializers;
 import net.md_5.bungee.config.Configuration;
@@ -34,7 +36,7 @@ import net.md_5.bungee.config.ConfigurationProvider;
 import net.md_5.bungee.config.YamlConfiguration;
 import ru.leymooo.simpleskins.command.SkinCommand;
 
-@Plugin(id = "simpleskins", name = "SimpleSkins", version = "1.0.0",
+@Plugin(id = "simpleskins", name = "SimpleSkins", version = "1.0.1",
         description = "Simple skins restorer plugin for velocity",
         authors = "Leymooo")
 public class SimpleSkins {
@@ -58,7 +60,7 @@ public class SimpleSkins {
 
     @Subscribe
     public void onProxyInitialize(ProxyInitializeEvent event) {
-        logger.info("Enabling SimspleSkins version 1.0.0");
+        logger.info("Enabling SimpleSkins");
 
         if (!loadConfig()) {
             server.getEventManager().unregisterListeners(this);
@@ -69,15 +71,21 @@ public class SimpleSkins {
         this.dataBaseUtils = new DataBaseUtils(this);
 
         this.server.getCommandManager().register(new SkinCommand(this), "skin");
-        //Config
-        //Command
+        logger.info("SimpleSkins enabled");
     }
 
     @Subscribe
     public void onShutDown(ProxyShutdownEvent ev) {
-        
+        logger.info("Disabling SimpleSkins");
+        this.dataBaseUtils.closeConnection();
+        this.service.shutdownNow();
+        try {
+            this.service.awaitTermination(5000, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException ex) {
+        }
+        logger.info("SimpleSkins disabled");
     }
-    
+
     @Subscribe
     public void onGameProfileRequest(GameProfileRequestEvent event) {
         if (!event.isOnlineMode()) {
