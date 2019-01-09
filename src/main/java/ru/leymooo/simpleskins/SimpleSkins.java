@@ -23,12 +23,13 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
+import net.kyori.text.Component;
 
 import net.kyori.text.serializer.ComponentSerializers;
 import net.md_5.bungee.config.Configuration;
@@ -36,7 +37,7 @@ import net.md_5.bungee.config.ConfigurationProvider;
 import net.md_5.bungee.config.YamlConfiguration;
 import ru.leymooo.simpleskins.command.SkinCommand;
 
-@Plugin(id = "simpleskins", name = "SimpleSkins", version = "1.0.1",
+@Plugin(id = "simpleskins", name = "SimpleSkins", version = "1.1",
         description = "Simple skins restorer plugin for velocity",
         authors = "Leymooo")
 public class SimpleSkins {
@@ -46,6 +47,7 @@ public class SimpleSkins {
     private final Path dataDirectory;
     private final SkinUtils skinUtils;
     private final ExecutorService service = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+    private final UuidFetchCache uuidCache = new UuidFetchCache();
     private RoundIterator<SkinUtils.FetchResult> defaultSkins;
     private Configuration config;
     private DataBaseUtils dataBaseUtils;
@@ -133,6 +135,7 @@ public class SimpleSkins {
             try {
                 future.get();
             } catch (InterruptedException | ExecutionException ex) {
+                ex.printStackTrace();
             }
         }
         this.defaultSkins = new RoundIterator<>(skins);
@@ -141,7 +144,23 @@ public class SimpleSkins {
 
     public Optional<SkinUtils.FetchResult> fetchSkin(Optional<Player> player, String name, boolean logError, boolean fromDatabase) {
         try {
-            return fromDatabase ? dataBaseUtils.getProperty(name) : Optional.of(skinUtils.fetchSkin(name));
+            if (fromDatabase) {
+                return dataBaseUtils.getProperty(name);
+            }
+            UUID uuid = (uuid = checkUUID(name)) == null ? skinUtils.fetchUUID(name) : uuid;
+            if (uuidCache.isWorking(uuid)) {
+                player.ifPresent(pl -> pl.sendMessage(deserialize("messages.working")));
+                return Optional.empty();
+            }
+            uuidCache.addWorking(uuid);
+            try {
+                Optional<SkinUtils.FetchResult> result = uuidCache.getIfCached(uuid);
+                result = result.isPresent() ? result : Optional.of(skinUtils.fetchSkin(uuid));
+                uuidCache.cache(result.get());
+                return result;
+            } finally {
+                uuidCache.removeWorking(uuid);
+            }
         } catch (SkinUtils.UserNotFoundExeption ex) {
             if (logError) {
                 logger.error("Can not fetch skin for '{}': {}", name, ex.getMessage());
@@ -149,7 +168,7 @@ public class SimpleSkins {
         } catch (IOException | JsonSyntaxException ex) {
             logger.error("Can not fetch skin", ex);
         }
-        player.ifPresent(pl -> pl.sendMessage(ComponentSerializers.LEGACY.deserialize(config.getString("messages.skin-not-found"), '&')));
+        player.ifPresent(pl -> pl.sendMessage(deserialize("messages.skin-not-found")));
         return Optional.empty();
     }
 
@@ -179,6 +198,18 @@ public class SimpleSkins {
 
     public SkinUtils getSkinUtils() {
         return skinUtils;
+    }
+
+    public Component deserialize(String configKey) {
+        return ComponentSerializers.LEGACY.deserialize(config.getString(configKey), '&');
+    }
+
+    private UUID checkUUID(String toCheck) {
+        try {
+            return UUID.fromString(toCheck);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
 }

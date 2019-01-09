@@ -27,16 +27,16 @@ public class SkinCommand implements Command {
     @Override
     public void execute(CommandSource cs, String[] args) {
         if (plugin.getConfig().getBoolean("use-permission") && !cs.hasPermission("simpleskins.skin")) {
-            cs.sendMessage(ComponentSerializers.LEGACY.deserialize(plugin.getConfig().getString("messages.no-permission"), '&'));
+            cs.sendMessage(plugin.deserialize("messages.no-permission"));
             return;
         }
         if (cs instanceof Player) {
             if (args.length == 0) {
-                cs.sendMessage(ComponentSerializers.LEGACY.deserialize(plugin.getConfig().getString("messages.help"), '&'));
+                cs.sendMessage(plugin.deserialize("messages.help"));
                 return;
             }
             if (working.contains(cs)) {
-                cs.sendMessage(ComponentSerializers.LEGACY.deserialize(plugin.getConfig().getString("messages.working"), '&'));
+                cs.sendMessage(plugin.deserialize("messages.working"));
                 return;
             }
             Player player = (Player) cs;
@@ -45,25 +45,25 @@ public class SkinCommand implements Command {
                 plugin.getExecutorService().execute(() -> {
                     Optional<UUID> uuid = plugin.getDataBaseUtils().getUuid(player.getUsername());
                     if (uuid.isPresent()) {
-                        cs.sendMessage(ComponentSerializers.LEGACY.deserialize(plugin.getConfig().getString("messages.fetching"), '&'));
+                        cs.sendMessage(plugin.deserialize("messages.fetching"));
                         Optional<SkinUtils.FetchResult> newSkin = plugin.fetchSkin(Optional.of(player), uuid.get().toString(), false, false);
                         newSkin.ifPresent(skin -> {
-                            cs.sendMessage(ComponentSerializers.LEGACY.deserialize(plugin.getConfig().getString("messages.skin-changed"), '&'));
+                            cs.sendMessage(plugin.deserialize("messages.skin-changed"));
                             plugin.getSkinUtils().applySkin(player, skin.getProperty());
                         });
                     } else {
-                        cs.sendMessage(ComponentSerializers.LEGACY.deserialize(plugin.getConfig().getString("messages.skin-update-error"), '&'));
+                        cs.sendMessage(plugin.deserialize("messages.skin-update-error"));
                     }
                     working.remove(cs);
                 });
                 return;
             }
             plugin.getExecutorService().execute(() -> {
-                cs.sendMessage(ComponentSerializers.LEGACY.deserialize(plugin.getConfig().getString("messages.fetching"), '&'));
+                cs.sendMessage(plugin.deserialize("messages.fetching"));
                 Optional<SkinUtils.FetchResult> newSkin = plugin.fetchSkin(Optional.of(player),
                         args[0].equalsIgnoreCase("reset") ? player.getUsername() : args[0], false, false);
                 newSkin.ifPresent(skin -> {
-                    cs.sendMessage(ComponentSerializers.LEGACY.deserialize(plugin.getConfig().getString("messages.skin-changed"), '&'));
+                    cs.sendMessage(plugin.deserialize("messages.skin-changed"));
                     plugin.getDataBaseUtils().saveUser(player.getUsername(), skin);
                     plugin.getSkinUtils().applySkin(player, skin.getProperty());
 

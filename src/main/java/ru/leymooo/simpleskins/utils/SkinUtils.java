@@ -26,11 +26,14 @@ package ru.leymooo.simpleskins.utils;
 
 import com.google.common.io.CharStreams;
 import com.google.common.net.HttpHeaders;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.util.GameProfile;
+import com.velocitypowered.api.util.UuidUtils;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -51,7 +54,8 @@ import ru.leymooo.simpleskins.SimpleSkins;
  */
 public class SkinUtils {
 
-    private static final String PROFILE_URL = "https://api.ashcon.app/mojang/v2/user/";
+    private static final String UUID_URL = "https://api.ashcon.app/mojang/v2/uuid/";
+    private static final String SKIN_URL = "https://sessionserver.mojang.com/session/minecraft/profile/";
     private static final JsonParser JSON_PARSER = new JsonParser();
     private final SimpleSkins plugin;
 
@@ -84,27 +88,46 @@ public class SkinUtils {
         return properties;
     }
 
-    public FetchResult fetchSkin(String username) throws IOException, UserNotFoundExeption, JsonSyntaxException {
-        HttpURLConnection connection = getConnection(PROFILE_URL + username);
+    public UUID fetchUUID(String username) throws IOException, UserNotFoundExeption, JsonSyntaxException {
+        if (username.length() > 16) {
+            throw new UserNotFoundExeption(username);
+        }
+        HttpURLConnection connection = getConnection(UUID_URL + username);
         int responseCode = connection.getResponseCode();
 
-        if (responseCode == HttpURLConnection.HTTP_NO_CONTENT || responseCode == HttpURLConnection.HTTP_NOT_FOUND) {
-            throw new UserNotFoundExeption(username);
-        } else if (responseCode == HttpURLConnection.HTTP_OK) {
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
-                JsonObject paresed = JSON_PARSER.parse(reader).getAsJsonObject();
-                JsonObject skin = paresed.get("textures").getAsJsonObject().get("raw").getAsJsonObject();
-                return new FetchResult(UUID.fromString(paresed.get("uuid").getAsString()),
-                        new GameProfile.Property("textures", skin.get("value").getAsString(), skin.get("signature").getAsString()));
-            }
-        } else {
+        if (validate(responseCode)) {
+            return UUID.fromString(getJson(connection).getAsJsonPrimitive().getAsString());
+        } else if (responseCode != HttpURLConnection.HTTP_NO_CONTENT && responseCode != HttpURLConnection.HTTP_NOT_FOUND) {
             printErrorStream(connection, responseCode);
         }
         throw new UserNotFoundExeption(username);
-
     }
 
+    public FetchResult fetchSkin(UUID uuid) throws IOException, UserNotFoundExeption, JsonSyntaxException {
+        HttpURLConnection connection = getConnection(SKIN_URL + UuidUtils.toUndashed(uuid) + "?unsigned=false");
+        int responseCode = connection.getResponseCode();
+
+        if (validate(responseCode)) {
+            JsonObject paresed = getJson(connection).getAsJsonObject();
+            JsonObject skin = paresed.getAsJsonArray("properties").get(0).getAsJsonObject();
+            return new FetchResult(UuidUtils.fromUndashed(paresed.get("id").getAsString()),
+                    new GameProfile.Property("textures", skin.get("value").getAsString(), skin.get("signature").getAsString()));
+        } else if (responseCode != HttpURLConnection.HTTP_NO_CONTENT && responseCode != HttpURLConnection.HTTP_NOT_FOUND) {
+            printErrorStream(connection, responseCode);
+        }
+        throw new UserNotFoundExeption(uuid.toString());
+    }
+
+    private JsonElement getJson(HttpURLConnection connection) throws IOException {
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+            return JSON_PARSER.parse(reader);
+        }
+    }
+
+    private boolean validate(int responseCode) {
+        return responseCode == HttpURLConnection.HTTP_OK;
+    }
     private static final int TIMEOUT = 5000;
 
     private HttpURLConnection getConnection(String url) throws IOException {

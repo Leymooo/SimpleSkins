@@ -32,7 +32,7 @@ public class DataBaseUtils {
     private void connect() {
         try {
             Class.forName("org.h2.Driver");
-            this.connection = DriverManager.getConnection("jdbc:h2:." + File.separator + plugin.getDataDirectory().toString() + File.separator + "users;mode=MySQL", null, null);
+            this.connection = DriverManager.getConnection("jdbc:h2:." + File.separator + plugin.getDataDirectory().toString() + File.separator + "users;mode=MySQL;MULTI_THREADED=1;", null, null);
             try (Statement st = this.connection.createStatement()) {
                 String sql = "CREATE TABLE IF NOT EXISTS `Users` ("
                         + "`Name` VARCHAR(16) NOT NULL PRIMARY KEY,"
