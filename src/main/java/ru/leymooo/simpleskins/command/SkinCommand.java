@@ -9,7 +9,8 @@ import java.util.Set;
 import java.util.UUID;
 import net.kyori.text.serializer.ComponentSerializers;
 import ru.leymooo.simpleskins.SimpleSkins;
-import ru.leymooo.simpleskins.utils.SkinUtils;
+import ru.leymooo.simpleskins.utils.SkinApplier;
+import ru.leymooo.simpleskins.utils.SkinFetcher;
 
 /**
  *
@@ -46,10 +47,10 @@ public class SkinCommand implements Command {
                     Optional<UUID> uuid = plugin.getDataBaseUtils().getUuid(player.getUsername());
                     if (uuid.isPresent()) {
                         cs.sendMessage(plugin.deserialize("messages.fetching"));
-                        Optional<SkinUtils.FetchResult> newSkin = plugin.fetchSkin(Optional.of(player), uuid.get().toString(), false, false);
+                        Optional<SkinFetcher.FetchResult> newSkin = plugin.getSkinFetcher().fetchSkin(player, uuid.get());
                         newSkin.ifPresent(skin -> {
                             cs.sendMessage(plugin.deserialize("messages.skin-changed"));
-                            plugin.getSkinUtils().applySkin(player, skin.getProperty());
+                            SkinApplier.applySkin(player, skin.getProperty());
                         });
                     } else {
                         cs.sendMessage(plugin.deserialize("messages.skin-update-error"));
@@ -60,12 +61,11 @@ public class SkinCommand implements Command {
             }
             plugin.getExecutorService().execute(() -> {
                 cs.sendMessage(plugin.deserialize("messages.fetching"));
-                Optional<SkinUtils.FetchResult> newSkin = plugin.fetchSkin(Optional.of(player),
-                        args[0].equalsIgnoreCase("reset") ? player.getUsername() : args[0], false, false);
+                Optional<SkinFetcher.FetchResult> newSkin = plugin.getSkinFetcher().fetchSkin(player, args[0].equalsIgnoreCase("reset") ? player.getUsername() : args[0]);
                 newSkin.ifPresent(skin -> {
-                    cs.sendMessage(plugin.deserialize("messages.skin-changed"));
                     plugin.getDataBaseUtils().saveUser(player.getUsername(), skin);
-                    plugin.getSkinUtils().applySkin(player, skin.getProperty());
+                    SkinApplier.applySkin(player, skin.getProperty());
+                    cs.sendMessage(plugin.deserialize("messages.skin-changed"));
 
                 });
                 working.remove(cs);

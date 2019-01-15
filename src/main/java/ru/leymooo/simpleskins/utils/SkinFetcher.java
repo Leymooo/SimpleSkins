@@ -26,7 +26,6 @@ package ru.leymooo.simpleskins.utils;
 
 import com.google.common.io.CharStreams;
 import com.google.common.net.HttpHeaders;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -41,9 +40,8 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import ru.leymooo.simpleskins.SimpleSkins;
@@ -52,43 +50,103 @@ import ru.leymooo.simpleskins.SimpleSkins;
  *
  * @author mikim
  */
-public class SkinUtils {
+public class SkinFetcher {
 
     private static final String UUID_URL = "https://api.ashcon.app/mojang/v2/uuid/";
     private static final String SKIN_URL = "https://sessionserver.mojang.com/session/minecraft/profile/";
+    private static final String ALTERNATIVE_SKIN_URL = "https://api.ashcon.app/mojang/v2/user/";
+
     private static final JsonParser JSON_PARSER = new JsonParser();
     private final SimpleSkins plugin;
+    private final DataBaseUtils dataBaseUtils;
+    private final UuidFetchCache uuidFetchCache;
 
-    public SkinUtils(SimpleSkins plugin) {
+    public SkinFetcher(SimpleSkins plugin, DataBaseUtils db, UuidFetchCache uuidCache) {
         this.plugin = plugin;
+        this.dataBaseUtils = db;
+        this.uuidFetchCache = uuidCache;
     }
 
-    public GameProfile applySkin(GameProfile original, GameProfile.Property property) {
-        List<GameProfile.Property> properties = createProperties(original.getProperties(), property);
-        return new GameProfile(original.getId(), original.getName(), properties);
+    public Optional<FetchResult> getPlayerSkinFromDatabase(String userName) {
+        return dataBaseUtils.getProperty(userName);
     }
 
-    public void applySkin(Player player, GameProfile.Property property) {
-        player.setGameProfileProperties(createProperties(player.getGameProfileProperties(), property));
+    public Optional<FetchResult> fetchSkin(Player player, UUID uuid) {
+        try {
+            Optional<FetchResult> result = getSkin(uuid);
+            if (!result.isPresent()) {
+                player.sendMessage(plugin.deserialize("messages.working"));
+                return Optional.empty();
+            }
+            return result;
+        } catch (SkinFetcher.UserNotFoundExeption ex) {
+
+        } catch (IOException | JsonSyntaxException ex) {
+            plugin.getLogger().error("Can not fetch skin", ex);
+        }
+        player.sendMessage(plugin.deserialize("messages.skin-not-found"));
+        return Optional.empty();
     }
 
-    private List<GameProfile.Property> createProperties(List<GameProfile.Property> list, GameProfile.Property property) {
-        List<GameProfile.Property> properties = new ArrayList<>(list);
-        boolean applied = false;
-        for (int i = 0; i < properties.size(); i++) {
-            GameProfile.Property lproperty = properties.get(i);
-            if ("textures".equals(lproperty.getName())) {
-                properties.set(i, property);
-                applied = true;
+    public Optional<FetchResult> fetchSkin(Player player, String name) {
+        try {
+            Optional<FetchResult> result = getSkin(name);
+            if (!result.isPresent()) {
+                player.sendMessage(plugin.deserialize("messages.working"));
+                return Optional.empty();
+            }
+            return result;
+        } catch (SkinFetcher.UserNotFoundExeption ex) {
+
+        } catch (IOException | JsonSyntaxException ex) {
+            plugin.getLogger().error("Can not fetch skin", ex);
+        }
+        player.sendMessage(plugin.deserialize("messages.skin-not-found"));
+        return Optional.empty();
+    }
+
+    /**
+     * Fetch skin. Will print error to console.
+     *
+     * @param name - Name or UUID in string
+     * @param silent - if false error will be printed to console
+     * @return Optional of FetchResult
+     */
+    public Optional<FetchResult> fetchSkin(String name, boolean silent) {
+        try {
+            return getSkin(name);
+        } catch (IOException | JsonSyntaxException | UserNotFoundExeption ex) {
+            if (!silent) {
+                plugin.getLogger().error("Can not fetch skin for {}", name, ex);
             }
         }
-        if (!applied) {
-            properties.add(property);
-        }
-        return properties;
+        return Optional.empty();
     }
 
-    public UUID fetchUUID(String username) throws IOException, UserNotFoundExeption, JsonSyntaxException {
+    private Optional<FetchResult> getSkin(String name) throws UserNotFoundExeption, IOException, JsonSyntaxException {
+        UUID uuid = (uuid = getUuidIfValid(name)) == null ? fetchUUID(name) : uuid;
+        return getSkin(uuid);
+    }
+
+    private Optional<FetchResult> getSkin(UUID uuid) throws UserNotFoundExeption, IOException, JsonSyntaxException {
+        if (uuidFetchCache.isWorking(uuid)) {
+            return Optional.empty();
+        }
+        uuidFetchCache.addWorking(uuid);
+        try {
+            Optional<FetchResult> result = uuidFetchCache.getIfCached(uuid);
+            if (result.isPresent()) {
+                return result;
+            }
+            result = Optional.of(fetchSkin(uuid));
+            uuidFetchCache.cache(result.get());
+            return result;
+        } finally {
+            uuidFetchCache.removeWorking(uuid);
+        }
+    }
+
+    private UUID fetchUUID(String username) throws IOException, UserNotFoundExeption, JsonSyntaxException {
         if (username.length() > 16) {
             throw new UserNotFoundExeption(username);
         }
@@ -103,14 +161,31 @@ public class SkinUtils {
         throw new UserNotFoundExeption(username);
     }
 
-    public FetchResult fetchSkin(UUID uuid) throws IOException, UserNotFoundExeption, JsonSyntaxException {
+    private FetchResult fetchSkin(UUID uuid) throws IOException, UserNotFoundExeption, JsonSyntaxException {
         HttpURLConnection connection = getConnection(SKIN_URL + UuidUtils.toUndashed(uuid) + "?unsigned=false");
         int responseCode = connection.getResponseCode();
 
         if (validate(responseCode)) {
             JsonObject paresed = getJson(connection).getAsJsonObject();
             JsonObject skin = paresed.getAsJsonArray("properties").get(0).getAsJsonObject();
-            return new FetchResult(UuidUtils.fromUndashed(paresed.get("id").getAsString()),
+            return new FetchResult(uuid,
+                    new GameProfile.Property("textures", skin.get("value").getAsString(), skin.get("signature").getAsString()));
+        } else if (responseCode == 429) { //Rate limited
+            return fetchSkinAlternative(uuid);
+        } else if (responseCode != HttpURLConnection.HTTP_NO_CONTENT && responseCode != HttpURLConnection.HTTP_NOT_FOUND) {
+            printErrorStream(connection, responseCode);
+        }
+        throw new UserNotFoundExeption(uuid.toString());
+    }
+
+    private FetchResult fetchSkinAlternative(UUID uuid) throws IOException, UserNotFoundExeption, JsonSyntaxException {
+        HttpURLConnection connection = getConnection(ALTERNATIVE_SKIN_URL + uuid.toString());
+        int responseCode = connection.getResponseCode();
+
+        if (validate(responseCode)) {
+            JsonObject paresed = getJson(connection).getAsJsonObject();
+            JsonObject skin = paresed.getAsJsonObject("textures").getAsJsonObject("raw");
+            return new FetchResult(uuid,
                     new GameProfile.Property("textures", skin.get("value").getAsString(), skin.get("signature").getAsString()));
         } else if (responseCode != HttpURLConnection.HTTP_NO_CONTENT && responseCode != HttpURLConnection.HTTP_NOT_FOUND) {
             printErrorStream(connection, responseCode);
@@ -127,6 +202,14 @@ public class SkinUtils {
 
     private boolean validate(int responseCode) {
         return responseCode == HttpURLConnection.HTTP_OK;
+    }
+
+    private UUID getUuidIfValid(String toParse) {
+        try {
+            return UUID.fromString(toParse);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
     private static final int TIMEOUT = 5000;
 
