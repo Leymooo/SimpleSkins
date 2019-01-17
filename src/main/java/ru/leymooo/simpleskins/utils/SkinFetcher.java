@@ -1,7 +1,7 @@
 /*
  * This file is part of ChangeSkin, licensed under the MIT License (MIT).
  *
- * Copyright (c) SpongePowered <https://github.com/games647/ChangeSkin>
+ * Copyright (c) games647 <https://github.com/games647/ChangeSkin>
  * Copyright (c) contributors
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
