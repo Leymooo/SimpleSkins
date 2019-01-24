@@ -7,10 +7,9 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import net.kyori.text.serializer.ComponentSerializers;
 import ru.leymooo.simpleskins.SimpleSkins;
 import ru.leymooo.simpleskins.utils.SkinApplier;
-import ru.leymooo.simpleskins.utils.SkinFetcher;
+import ru.leymooo.simpleskins.utils.skinfetch.FetchResult;
 
 /**
  *
@@ -47,7 +46,7 @@ public class SkinCommand implements Command {
                     Optional<UUID> uuid = plugin.getDataBaseUtils().getUuid(player.getUsername());
                     if (uuid.isPresent()) {
                         cs.sendMessage(plugin.deserialize("messages.fetching"));
-                        Optional<SkinFetcher.FetchResult> newSkin = plugin.getSkinFetcher().fetchSkin(player, uuid.get());
+                        Optional<FetchResult> newSkin = plugin.getSkinFetcher().fetchSkin(player, uuid.get());
                         newSkin.ifPresent(skin -> {
                             cs.sendMessage(plugin.deserialize("messages.skin-changed"));
                             SkinApplier.applySkin(player, skin.getProperty());
@@ -61,7 +60,7 @@ public class SkinCommand implements Command {
             }
             plugin.getExecutorService().execute(() -> {
                 cs.sendMessage(plugin.deserialize("messages.fetching"));
-                Optional<SkinFetcher.FetchResult> newSkin = plugin.getSkinFetcher().fetchSkin(player, args[0].equalsIgnoreCase("reset") ? player.getUsername() : args[0]);
+                Optional<FetchResult> newSkin = plugin.getSkinFetcher().fetchSkin(player, args[0].equalsIgnoreCase("reset") ? player.getUsername() : args[0]);
                 newSkin.ifPresent(skin -> {
                     plugin.getDataBaseUtils().saveUser(player.getUsername(), skin);
                     SkinApplier.applySkin(player, skin.getProperty());

@@ -22,7 +22,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package ru.leymooo.simpleskins.utils;
+package ru.leymooo.simpleskins.utils.skinfetch;
 
 import com.google.common.io.CharStreams;
 import com.google.common.net.HttpHeaders;
@@ -40,11 +40,12 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import ru.leymooo.simpleskins.SimpleSkins;
+import ru.leymooo.simpleskins.utils.DataBaseUtils;
+import ru.leymooo.simpleskins.utils.UuidFetchCache;
 
 /**
  *
@@ -52,9 +53,9 @@ import ru.leymooo.simpleskins.SimpleSkins;
  */
 public class SkinFetcher {
 
-    private static final String UUID_URL = "https://api.ashcon.app/mojang/v2/uuid/";
+    private static final String UUID_URL = "https://api.ashcon.app/mojang/v1/uuid/";
     private static final String SKIN_URL = "https://sessionserver.mojang.com/session/minecraft/profile/";
-    private static final String ALTERNATIVE_SKIN_URL = "https://api.ashcon.app/mojang/v2/user/";
+    //private static final String ALTERNATIVE_SKIN_URL = "https://api.ashcon.app/mojang/v2/user/";
 
     private static final JsonParser JSON_PARSER = new JsonParser();
     private final SimpleSkins plugin;
@@ -136,10 +137,12 @@ public class SkinFetcher {
         try {
             Optional<FetchResult> result = uuidFetchCache.getIfCached(uuid);
             if (result.isPresent()) {
+                checkFetchResult(result.get());
                 return result;
             }
             result = Optional.of(fetchSkin(uuid));
             uuidFetchCache.cache(result.get());
+            checkFetchResult(result.get());
             return result;
         } finally {
             uuidFetchCache.removeWorking(uuid);
@@ -161,6 +164,12 @@ public class SkinFetcher {
         throw new UserNotFoundExeption(username);
     }
 
+    private void checkFetchResult(FetchResult result) throws UserNotFoundExeption {
+        if (result instanceof RateLimitedFetchResult) {
+            throw new UserNotFoundExeption("Can not fetch skin due to rate-limit for " + result.getId());
+        }
+    }
+
     private FetchResult fetchSkin(UUID uuid) throws IOException, UserNotFoundExeption, JsonSyntaxException {
         HttpURLConnection connection = getConnection(SKIN_URL + UuidUtils.toUndashed(uuid) + "?unsigned=false");
         int responseCode = connection.getResponseCode();
@@ -168,7 +177,7 @@ public class SkinFetcher {
         if (validate(responseCode)) {
             JsonObject paresed = getJson(connection).getAsJsonObject();
             JsonObject skin = paresed.getAsJsonArray("properties").get(0).getAsJsonObject();
-            return new FetchResult(uuid,
+            return new SkinFetchResult(uuid,
                     new GameProfile.Property("textures", skin.get("value").getAsString(), skin.get("signature").getAsString()));
         } else if (responseCode == 429) { //Rate limited
             return fetchSkinAlternative(uuid);
@@ -179,7 +188,7 @@ public class SkinFetcher {
     }
 
     private FetchResult fetchSkinAlternative(UUID uuid) throws IOException, UserNotFoundExeption, JsonSyntaxException {
-        HttpURLConnection connection = getConnection(ALTERNATIVE_SKIN_URL + uuid.toString());
+        /*HttpURLConnection connection = getConnection(ALTERNATIVE_SKIN_URL + uuid.toString());
         int responseCode = connection.getResponseCode();
 
         if (validate(responseCode)) {
@@ -191,6 +200,8 @@ public class SkinFetcher {
             printErrorStream(connection, responseCode);
         }
         throw new UserNotFoundExeption(uuid.toString());
+         */
+        return new RateLimitedFetchResult(uuid);
     }
 
     private JsonElement getJson(HttpURLConnection connection) throws IOException {
@@ -242,54 +253,5 @@ public class SkinFetcher {
         public UserNotFoundExeption(String userName) {
             super(userName);
         }
-    }
-
-    public static class FetchResult {
-
-        private final UUID id;
-        private final GameProfile.Property property;
-
-        public FetchResult(UUID id, GameProfile.Property property) {
-            this.id = id;
-            this.property = property;
-        }
-
-        public UUID getId() {
-            return id;
-        }
-
-        public GameProfile.Property getProperty() {
-            return property;
-        }
-
-        @Override
-        public int hashCode() {
-            int hash = 3;
-            hash = 17 * hash + Objects.hashCode(this.id);
-            hash = 17 * hash + Objects.hashCode(this.property);
-            return hash;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            final FetchResult other = (FetchResult) obj;
-            if (!Objects.equals(this.id, other.id)) {
-                return false;
-            }
-            if (!Objects.equals(this.property, other.property)) {
-                return false;
-            }
-            return true;
-        }
-
     }
 }

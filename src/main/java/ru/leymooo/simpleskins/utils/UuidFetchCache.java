@@ -8,7 +8,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import ru.leymooo.simpleskins.SimpleSkins;
-import ru.leymooo.simpleskins.utils.SkinFetcher.FetchResult;
+import ru.leymooo.simpleskins.utils.skinfetch.FetchResult;
 
 public class UuidFetchCache {
 

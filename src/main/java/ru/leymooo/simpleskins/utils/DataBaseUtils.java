@@ -1,5 +1,6 @@
 package ru.leymooo.simpleskins.utils;
 
+import ru.leymooo.simpleskins.utils.skinfetch.SkinFetcher;
 import com.velocitypowered.api.util.GameProfile;
 import java.io.File;
 import java.sql.Connection;
@@ -12,6 +13,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import ru.leymooo.simpleskins.SimpleSkins;
+import ru.leymooo.simpleskins.utils.skinfetch.FetchResult;
+import ru.leymooo.simpleskins.utils.skinfetch.SkinFetchResult;
 
 public class DataBaseUtils {
 
@@ -47,12 +50,12 @@ public class DataBaseUtils {
         }
     }
 
-    public Optional<SkinFetcher.FetchResult> getProperty(String name) {
+    public Optional<FetchResult> getProperty(String name) {
         try (PreparedStatement ps = connection.prepareStatement(SELECT_SKIN_SQL)) {
             ps.setString(1, name.toLowerCase());
             ResultSet set = ps.executeQuery();
             if (set.next()) {
-                return Optional.of(new SkinFetcher.FetchResult(set.getObject(1, UUID.class),
+                return Optional.of(new SkinFetchResult(set.getObject(1, UUID.class),
                         new GameProfile.Property("textures", set.getString(2), set.getString(3))));
             }
         } catch (SQLException ex) {
@@ -74,7 +77,7 @@ public class DataBaseUtils {
         return Optional.empty();
     }
 
-    public void saveUser(String name, SkinFetcher.FetchResult result) {
+    public void saveUser(String name, FetchResult result) {
         try (PreparedStatement ps = connection.prepareStatement(SELECT_NAME_SQL)) {
             ps.setString(1, name.toLowerCase());
             ResultSet set = ps.executeQuery();

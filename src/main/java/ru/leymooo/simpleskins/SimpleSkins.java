@@ -3,7 +3,7 @@ package ru.leymooo.simpleskins;
 import ru.leymooo.simpleskins.utils.UuidFetchCache;
 import ru.leymooo.simpleskins.utils.RoundIterator;
 import ru.leymooo.simpleskins.utils.DataBaseUtils;
-import ru.leymooo.simpleskins.utils.SkinFetcher;
+import ru.leymooo.simpleskins.utils.skinfetch.SkinFetcher;
 import com.google.inject.Inject;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.player.GameProfileRequestEvent;
@@ -35,9 +35,9 @@ import net.md_5.bungee.config.ConfigurationProvider;
 import net.md_5.bungee.config.YamlConfiguration;
 import ru.leymooo.simpleskins.command.SkinCommand;
 import ru.leymooo.simpleskins.utils.SkinApplier;
-import ru.leymooo.simpleskins.utils.SkinFetcher.FetchResult;
+import ru.leymooo.simpleskins.utils.skinfetch.FetchResult;
 
-@Plugin(id = "simpleskins", name = "SimpleSkins", version = "1.2",
+@Plugin(id = "simpleskins", name = "SimpleSkins", version = "1.3",
         description = "Simple skins restorer plugin for velocity",
         authors = "Leymooo")
 public class SimpleSkins {
@@ -48,7 +48,7 @@ public class SimpleSkins {
     private SkinFetcher skinFetcher;
     private final ExecutorService service = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
     private final DataBaseUtils dataBaseUtils;
-    private RoundIterator<SkinFetcher.FetchResult> defaultSkins;
+    private RoundIterator<FetchResult> defaultSkins;
     private Configuration config;
 
     @Inject
@@ -131,11 +131,11 @@ public class SimpleSkins {
 
     private void initDefaultSkins() {
         logger.info("Loading default skins");
-        List<SkinFetcher.FetchResult> skins = new ArrayList<>();
+        List<FetchResult> skins = new ArrayList<>();
         List<Future<?>> futures = new ArrayList<>();
         for (String user : config.getStringList("default-skins")) {
             futures.add(service.submit(() -> skinFetcher.fetchSkin(user, false)
-                    .ifPresent(skin -> skins.add(new SkinFetcher.FetchResult(null, skin.getProperty())))));
+                    .ifPresent(skin -> skins.add(skin))));
         }
         for (Future<?> future : futures) {
             try {
