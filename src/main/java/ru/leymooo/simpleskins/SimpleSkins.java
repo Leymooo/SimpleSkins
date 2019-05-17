@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.*;
 
-@Plugin(id = "simpleskins", name = "SimpleSkins", version = "1.3",
+@Plugin(id = "simpleskins", name = "SimpleSkins", version = "1.4",
         description = "Simple skins restorer plugin for velocity",
         authors = "Leymooo")
 public class SimpleSkins {
