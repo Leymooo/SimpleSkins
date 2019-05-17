@@ -2,13 +2,14 @@ package ru.leymooo.simpleskins.utils;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import ru.leymooo.simpleskins.SimpleSkins;
+import ru.leymooo.simpleskins.utils.skinfetch.FetchResult;
+
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import ru.leymooo.simpleskins.SimpleSkins;
-import ru.leymooo.simpleskins.utils.skinfetch.FetchResult;
 
 public class UuidFetchCache {
 
@@ -19,9 +20,7 @@ public class UuidFetchCache {
             .build();
 
     public UuidFetchCache(SimpleSkins plugin) {
-        plugin.getProxyServer().getScheduler().buildTask(plugin, () -> {
-            cache.cleanUp();
-        }).repeat(15, TimeUnit.SECONDS).delay(5, TimeUnit.MILLISECONDS).schedule();
+        plugin.getProxyServer().getScheduler().buildTask(plugin, cache::cleanUp).repeat(15, TimeUnit.SECONDS).delay(5, TimeUnit.MILLISECONDS).schedule();
     }
 
     public boolean isWorking(UUID id) {

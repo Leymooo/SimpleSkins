@@ -1,41 +1,37 @@
 package ru.leymooo.simpleskins;
 
-import ru.leymooo.simpleskins.utils.UuidFetchCache;
-import ru.leymooo.simpleskins.utils.RoundIterator;
-import ru.leymooo.simpleskins.utils.DataBaseUtils;
-import ru.leymooo.simpleskins.utils.skinfetch.SkinFetcher;
 import com.google.inject.Inject;
 import com.velocitypowered.api.event.Subscribe;
-import com.velocitypowered.api.event.player.GameProfileRequestEvent;
+import com.velocitypowered.api.event.connection.PostLoginEvent;
 import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
 import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.plugin.annotation.DataDirectory;
+import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
+import net.kyori.text.Component;
+import net.kyori.text.serializer.legacy.LegacyComponentSerializer;
+import net.md_5.bungee.config.Configuration;
+import net.md_5.bungee.config.ConfigurationProvider;
+import net.md_5.bungee.config.YamlConfiguration;
+import org.slf4j.Logger;
+import ru.leymooo.simpleskins.command.SkinCommand;
+import ru.leymooo.simpleskins.utils.DataBaseUtils;
+import ru.leymooo.simpleskins.utils.RoundIterator;
+import ru.leymooo.simpleskins.utils.SkinApplier;
+import ru.leymooo.simpleskins.utils.UuidFetchCache;
+import ru.leymooo.simpleskins.utils.skinfetch.FetchResult;
+import ru.leymooo.simpleskins.utils.skinfetch.SkinFetcher;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
-import org.slf4j.Logger;
-
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import net.kyori.text.Component;
-
-import net.kyori.text.serializer.ComponentSerializers;
-import net.md_5.bungee.config.Configuration;
-import net.md_5.bungee.config.ConfigurationProvider;
-import net.md_5.bungee.config.YamlConfiguration;
-import ru.leymooo.simpleskins.command.SkinCommand;
-import ru.leymooo.simpleskins.utils.SkinApplier;
-import ru.leymooo.simpleskins.utils.skinfetch.FetchResult;
+import java.util.concurrent.*;
 
 @Plugin(id = "simpleskins", name = "SimpleSkins", version = "1.3",
         description = "Simple skins restorer plugin for velocity",
@@ -45,9 +41,9 @@ public class SimpleSkins {
     private final ProxyServer server;
     private final Logger logger;
     private final Path dataDirectory;
-    private SkinFetcher skinFetcher;
     private final ExecutorService service = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
     private final DataBaseUtils dataBaseUtils;
+    private SkinFetcher skinFetcher;
     private RoundIterator<FetchResult> defaultSkins;
     private Configuration config;
 
@@ -84,29 +80,29 @@ public class SimpleSkins {
         this.service.shutdownNow();
         try {
             this.service.awaitTermination(5000, TimeUnit.MILLISECONDS);
-        } catch (InterruptedException ex) {
+        } catch (InterruptedException ignored) {
         }
         logger.info("SimpleSkins disabled");
     }
 
     @Subscribe
-    public void onGameProfileRequest(GameProfileRequestEvent event) {
-        Optional<FetchResult> maybeCached = skinFetcher.getPlayerSkinFromDatabase(event.getUsername());
-
-        if (maybeCached.isPresent() && event.isOnlineMode()) {
-            event.setGameProfile(SkinApplier.createProfileWithSkin(event.getGameProfile(), maybeCached.get().getProperty()));
+    public void onPostLogin(PostLoginEvent event) {
+        Player player = event.getPlayer();
+        boolean hasSkin = SkinApplier.hasSkin(player);
+        boolean onlineMode = server.getConfiguration().isOnlineMode();
+        Optional<FetchResult> maybeCached = skinFetcher.getPlayerSkinFromDatabase(player.getUsername());
+        if ((hasSkin || onlineMode) && maybeCached.isPresent()) {
+            SkinApplier.applySkin(player, maybeCached.get().getProperty());
             return;
         }
-        if (!event.isOnlineMode()) {
+        if (!onlineMode) {
             Optional<FetchResult> toSet = maybeCached.isPresent()
-                    ? maybeCached : skinFetcher.fetchSkin(event.getUsername(), true);
+                    ? maybeCached : skinFetcher.fetchSkin(player.getUsername(), true);
             FetchResult skin = toSet.orElse(defaultSkins.next());
             if (skin != null) {
-                event.setGameProfile(SkinApplier.createProfileWithSkin(event.getGameProfile(), skin.getProperty()));
+                SkinApplier.applySkin(player, skin.getProperty());
                 if (!maybeCached.isPresent()) {
-                    service.execute(() -> {
-                        dataBaseUtils.saveUser(event.getUsername(), skin);
-                    });
+                    service.execute(() -> dataBaseUtils.saveUser(player.getUsername(), skin));
                 }
             }
         }
@@ -135,7 +131,7 @@ public class SimpleSkins {
         List<Future<?>> futures = new ArrayList<>();
         for (String user : config.getStringList("default-skins")) {
             futures.add(service.submit(() -> skinFetcher.fetchSkin(user, false)
-                    .ifPresent(skin -> skins.add(skin))));
+                    .ifPresent(skins::add)));
         }
         for (Future<?> future : futures) {
             try {
@@ -177,6 +173,6 @@ public class SimpleSkins {
     }
 
     public Component deserialize(String configKey) {
-        return ComponentSerializers.LEGACY.deserialize(config.getString(configKey), '&');
+        return LegacyComponentSerializer.INSTANCE.deserialize(config.getString(configKey), '&');
     }
 }

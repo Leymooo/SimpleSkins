@@ -1,6 +1,7 @@
 package ru.leymooo.simpleskins.utils.skinfetch;
 
 import com.velocitypowered.api.util.GameProfile;
+
 import java.util.UUID;
 
 public class RateLimitedFetchResult implements FetchResult {

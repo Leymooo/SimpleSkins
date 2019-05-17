@@ -1,31 +1,25 @@
 package ru.leymooo.simpleskins.utils;
 
-import ru.leymooo.simpleskins.utils.skinfetch.SkinFetcher;
 import com.velocitypowered.api.util.GameProfile;
-import java.io.File;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.Optional;
-import java.util.UUID;
-
 import ru.leymooo.simpleskins.SimpleSkins;
 import ru.leymooo.simpleskins.utils.skinfetch.FetchResult;
 import ru.leymooo.simpleskins.utils.skinfetch.SkinFetchResult;
 
+import java.io.File;
+import java.sql.*;
+import java.util.Optional;
+import java.util.UUID;
+
 public class DataBaseUtils {
 
     private final SimpleSkins plugin;
+    private static final String INSERT_SQL = "INSERT INTO `Users` (`Name`,`SkinUUID`,`SkinValue`,`SkinSignature`,`Timestamp`) VALUES (?,?,?,?,?);";
+    private static final String UPDATE_SQL = "UPDATE `Users` SET `SkinUUID` = ?,`SkinValue` = ?,`SkinSignature` = ?,`Timestamp` = ? WHERE `Name` = " +
+            "?;";
+    private static final String SELECT_SKIN_SQL = "SELECT `SkinUUID`, `SkinValue`, `SkinSignature` FROM `Users` WHERE `Name` = ? LIMIT 1;";
+    private static final String SELECT_UUID_SQL = "SELECT `SkinUUID` FROM `Users` WHERE `Name` = ? LIMIT 1;";
+    private static final String SELECT_NAME_SQL = "SELECT `Name` FROM `Users` WHERE `Name` = ? LIMIT 1;";
     private Connection connection;
-
-    private final String INSERT_SQL = "INSERT INTO `Users` (`Name`,`SkinUUID`,`SkinValue`,`SkinSignature`,`Timestamp`) VALUES (?,?,?,?,?);";
-    private final String UPDATE_SQL = "UPDATE `Users` SET `SkinUUID` = ?,`SkinValue` = ?,`SkinSignature` = ?,`Timestamp` = ? WHERE `Name` = ?;";
-    private final String SELECT_SKIN_SQL = "SELECT `SkinUUID`, `SkinValue`, `SkinSignature` FROM `Users` WHERE `Name` = ? LIMIT 1;";
-    private final String SELECT_UUID_SQL = "SELECT `SkinUUID` FROM `Users` WHERE `Name` = ? LIMIT 1;";
-    private final String SELECT_NAME_SQL = "SELECT `Name` FROM `Users` WHERE `Name` = ? LIMIT 1;";
 
     public DataBaseUtils(SimpleSkins plugin) {
         this.plugin = plugin;
@@ -35,7 +29,8 @@ public class DataBaseUtils {
     private void connect() {
         try {
             Class.forName("org.h2.Driver");
-            this.connection = DriverManager.getConnection("jdbc:h2:." + File.separator + plugin.getDataDirectory().toString() + File.separator + "users;mode=MySQL;MULTI_THREADED=1;", null, null);
+            this.connection = DriverManager.getConnection("jdbc:h2:." + File.separator + plugin.getDataDirectory().toString() + File.separator +
+                    "users;mode=MySQL;MULTI_THREADED=1;", null, null);
             try (Statement st = this.connection.createStatement()) {
                 String sql = "CREATE TABLE IF NOT EXISTS `Users` ("
                         + "`Name` VARCHAR(16) NOT NULL PRIMARY KEY,"

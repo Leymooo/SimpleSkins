@@ -32,7 +32,11 @@ import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.util.GameProfile;
-import com.velocitypowered.api.util.UuidUtils;
+import org.slf4j.Logger;
+import ru.leymooo.simpleskins.SimpleSkins;
+import ru.leymooo.simpleskins.utils.DataBaseUtils;
+import ru.leymooo.simpleskins.utils.UuidFetchCache;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,22 +46,18 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.UUID;
-import org.slf4j.Logger;
-import ru.leymooo.simpleskins.SimpleSkins;
-import ru.leymooo.simpleskins.utils.DataBaseUtils;
-import ru.leymooo.simpleskins.utils.UuidFetchCache;
 
 /**
- *
  * @author mikim
  */
 public class SkinFetcher {
 
-    private static final String UUID_URL = "https://api.ashcon.app/mojang/v1/uuid/";
-    private static final String SKIN_URL = "https://sessionserver.mojang.com/session/minecraft/profile/";
-    //private static final String ALTERNATIVE_SKIN_URL = "https://api.ashcon.app/mojang/v2/user/";
+    private static final String UUID_URL = "https://api.ashcon.app/mojang/v2/uuid/";
+    //private static final String SKIN_URL = "https://sessionserver.mojang.com/session/minecraft/profile/";
+    private static final String ALTERNATIVE_SKIN_URL = "https://api.ashcon.app/mojang/v2/user/";
 
     private static final JsonParser JSON_PARSER = new JsonParser();
+    private static final int TIMEOUT = 6000;
     private final SimpleSkins plugin;
     private final DataBaseUtils dataBaseUtils;
     private final UuidFetchCache uuidFetchCache;
@@ -73,31 +73,22 @@ public class SkinFetcher {
     }
 
     public Optional<FetchResult> fetchSkin(Player player, UUID uuid) {
-        try {
-            Optional<FetchResult> result = getSkin(uuid);
-            if (!result.isPresent()) {
-                player.sendMessage(plugin.deserialize("messages.working"));
-                return Optional.empty();
-            }
-            return result;
-        } catch (SkinFetcher.UserNotFoundExeption ex) {
-
-        } catch (IOException | JsonSyntaxException ex) {
-            plugin.getLogger().error("Can not fetch skin", ex);
-        }
-        player.sendMessage(plugin.deserialize("messages.skin-not-found"));
-        return Optional.empty();
+        return fetchSkin(player, (Object) uuid);
     }
 
     public Optional<FetchResult> fetchSkin(Player player, String name) {
+        return fetchSkin(player, (Object) name);
+    }
+
+    private Optional<FetchResult> fetchSkin(Player player, Object object) {
         try {
-            Optional<FetchResult> result = getSkin(name);
+            Optional<FetchResult> result = object instanceof String ? getSkin((String) object) : getSkin((UUID) object);
             if (!result.isPresent()) {
                 player.sendMessage(plugin.deserialize("messages.working"));
                 return Optional.empty();
             }
             return result;
-        } catch (SkinFetcher.UserNotFoundExeption ex) {
+        } catch (UserNotFoundException ignored) {
 
         } catch (IOException | JsonSyntaxException ex) {
             plugin.getLogger().error("Can not fetch skin", ex);
@@ -109,14 +100,14 @@ public class SkinFetcher {
     /**
      * Fetch skin. Will print error to console.
      *
-     * @param name - Name or UUID in string
+     * @param name   - Name or UUID in string
      * @param silent - if false error will be printed to console
      * @return Optional of FetchResult
      */
     public Optional<FetchResult> fetchSkin(String name, boolean silent) {
         try {
             return getSkin(name);
-        } catch (IOException | JsonSyntaxException | UserNotFoundExeption ex) {
+        } catch (IOException | JsonSyntaxException | UserNotFoundException ex) {
             if (!silent) {
                 plugin.getLogger().error("Can not fetch skin for {}", name, ex);
             }
@@ -124,12 +115,12 @@ public class SkinFetcher {
         return Optional.empty();
     }
 
-    private Optional<FetchResult> getSkin(String name) throws UserNotFoundExeption, IOException, JsonSyntaxException {
+    private Optional<FetchResult> getSkin(String name) throws UserNotFoundException, IOException, JsonSyntaxException {
         UUID uuid = (uuid = getUuidIfValid(name)) == null ? fetchUUID(name) : uuid;
         return getSkin(uuid);
     }
 
-    private Optional<FetchResult> getSkin(UUID uuid) throws UserNotFoundExeption, IOException, JsonSyntaxException {
+    private Optional<FetchResult> getSkin(UUID uuid) throws UserNotFoundException, IOException, JsonSyntaxException {
         if (uuidFetchCache.isWorking(uuid)) {
             return Optional.empty();
         }
@@ -140,7 +131,7 @@ public class SkinFetcher {
                 checkFetchResult(result.get());
                 return result;
             }
-            result = Optional.of(fetchSkin(uuid));
+            result = Optional.of(fetchSkinAlternative(uuid));
             uuidFetchCache.cache(result.get());
             checkFetchResult(result.get());
             return result;
@@ -149,9 +140,9 @@ public class SkinFetcher {
         }
     }
 
-    private UUID fetchUUID(String username) throws IOException, UserNotFoundExeption, JsonSyntaxException {
+    private UUID fetchUUID(String username) throws IOException, UserNotFoundException, JsonSyntaxException {
         if (username.length() > 16) {
-            throw new UserNotFoundExeption(username);
+            throw new UserNotFoundException(username);
         }
         HttpURLConnection connection = getConnection(UUID_URL + username);
         int responseCode = connection.getResponseCode();
@@ -161,16 +152,17 @@ public class SkinFetcher {
         } else if (responseCode != HttpURLConnection.HTTP_NO_CONTENT && responseCode != HttpURLConnection.HTTP_NOT_FOUND) {
             printErrorStream(connection, responseCode);
         }
-        throw new UserNotFoundExeption(username);
+        throw new UserNotFoundException(username);
     }
 
-    private void checkFetchResult(FetchResult result) throws UserNotFoundExeption {
+    private void checkFetchResult(FetchResult result) throws UserNotFoundException {
         if (result instanceof RateLimitedFetchResult) {
-            throw new UserNotFoundExeption("Can not fetch skin due to rate-limit for " + result.getId());
+            throw new UserNotFoundException("Can not fetch skin due to rate-limit for " + result.getId());
         }
     }
 
-    private FetchResult fetchSkin(UUID uuid) throws IOException, UserNotFoundExeption, JsonSyntaxException {
+    /*
+    private FetchResult fetchSkin(UUID uuid) throws IOException, UserNotFoundException, JsonSyntaxException {
         HttpURLConnection connection = getConnection(SKIN_URL + UuidUtils.toUndashed(uuid) + "?unsigned=false");
         int responseCode = connection.getResponseCode();
 
@@ -184,24 +176,23 @@ public class SkinFetcher {
         } else if (responseCode != HttpURLConnection.HTTP_NO_CONTENT && responseCode != HttpURLConnection.HTTP_NOT_FOUND) {
             printErrorStream(connection, responseCode);
         }
-        throw new UserNotFoundExeption(uuid.toString());
+        throw new UserNotFoundException(uuid.toString());
     }
+    */
 
-    private FetchResult fetchSkinAlternative(UUID uuid) throws IOException, UserNotFoundExeption, JsonSyntaxException {
-        /*HttpURLConnection connection = getConnection(ALTERNATIVE_SKIN_URL + uuid.toString());
+    private FetchResult fetchSkinAlternative(UUID uuid) throws IOException, UserNotFoundException, JsonSyntaxException {
+        HttpURLConnection connection = getConnection(ALTERNATIVE_SKIN_URL + uuid.toString());
         int responseCode = connection.getResponseCode();
 
         if (validate(responseCode)) {
-            JsonObject paresed = getJson(connection).getAsJsonObject();
-            JsonObject skin = paresed.getAsJsonObject("textures").getAsJsonObject("raw");
-            return new FetchResult(uuid,
+            JsonObject parsed = getJson(connection).getAsJsonObject();
+            JsonObject skin = parsed.getAsJsonObject("textures").getAsJsonObject("raw");
+            return new SkinFetchResult(uuid,
                     new GameProfile.Property("textures", skin.get("value").getAsString(), skin.get("signature").getAsString()));
         } else if (responseCode != HttpURLConnection.HTTP_NO_CONTENT && responseCode != HttpURLConnection.HTTP_NOT_FOUND) {
             printErrorStream(connection, responseCode);
         }
-        throw new UserNotFoundExeption(uuid.toString());
-         */
-        return new RateLimitedFetchResult(uuid);
+        throw new UserNotFoundException(uuid.toString());
     }
 
     private JsonElement getJson(HttpURLConnection connection) throws IOException {
@@ -222,7 +213,6 @@ public class SkinFetcher {
             return null;
         }
     }
-    private static final int TIMEOUT = 5000;
 
     private HttpURLConnection getConnection(String url) throws IOException {
         HttpURLConnection httpConnection = (HttpURLConnection) new URL(url).openConnection();
@@ -236,21 +226,20 @@ public class SkinFetcher {
     }
 
     private void printErrorStream(HttpURLConnection connection, int responseCode) throws IOException {
-        boolean proxy = connection.usingProxy();
         Logger logger = plugin.getLogger();
         //this necessary, because we cannot access input stream if the response code is something like 404
         try (InputStream in = responseCode < HttpURLConnection.HTTP_BAD_REQUEST
                 ? connection.getInputStream() : connection.getErrorStream()) {
-            logger.error("Received response: {} for {}", responseCode, connection.getURL(), proxy);
+            logger.error("Received response: {} for {}", responseCode, connection.getURL());
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
                 logger.error("Error stream: {}", CharStreams.toString(reader));
             }
         }
     }
 
-    public static class UserNotFoundExeption extends Exception {
+    static class UserNotFoundException extends Exception {
 
-        public UserNotFoundExeption(String userName) {
+        UserNotFoundException(String userName) {
             super(userName);
         }
     }

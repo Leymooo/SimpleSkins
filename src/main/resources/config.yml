@@ -3,7 +3,7 @@ messages:
   skin-not-found: "&4No skin with provided name was found."
   #If player does not have skin or default is used
   skin-update-error: "&4Can't update your skin."
-  skin-changed: "&2You received your new skin! Plese rejoin to server to see your new skin"
+  skin-changed: "&2You received your new skin! Please rejoin to server to see your new skin"
   help: "&f--------------- &aSimpleSkins &f--------------- \n
         &6/skin &a<name> &r- &6Set skin\n
         &6/skin &aupdate &r - &6Update your skin\n

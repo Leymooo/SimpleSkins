@@ -3,16 +3,16 @@ package ru.leymooo.simpleskins.command;
 import com.velocitypowered.api.command.Command;
 import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.proxy.Player;
-import java.util.HashSet;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
 import ru.leymooo.simpleskins.SimpleSkins;
 import ru.leymooo.simpleskins.utils.SkinApplier;
 import ru.leymooo.simpleskins.utils.skinfetch.FetchResult;
 
+import java.util.HashSet;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+
 /**
- *
  * @author mikim
  */
 public class SkinCommand implements Command {
@@ -60,7 +60,8 @@ public class SkinCommand implements Command {
             }
             plugin.getExecutorService().execute(() -> {
                 cs.sendMessage(plugin.deserialize("messages.fetching"));
-                Optional<FetchResult> newSkin = plugin.getSkinFetcher().fetchSkin(player, args[0].equalsIgnoreCase("reset") ? player.getUsername() : args[0]);
+                Optional<FetchResult> newSkin = plugin.getSkinFetcher().fetchSkin(player, args[0].equalsIgnoreCase("reset") ? player.getUsername()
+                        : args[0]);
                 newSkin.ifPresent(skin -> {
                     plugin.getDataBaseUtils().saveUser(player.getUsername(), skin);
                     SkinApplier.applySkin(player, skin.getProperty());

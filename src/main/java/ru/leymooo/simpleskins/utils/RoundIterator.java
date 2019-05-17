@@ -6,9 +6,9 @@ import java.util.function.Consumer;
 
 public class RoundIterator<T> implements Iterator<T> {
 
-    private Iterator<T> iterator;
     private final List<T> toIterate;
-    int cursor = 0;
+    private int cursor = 0;
+    private Iterator<T> iterator;
 
     public RoundIterator(List<T> backend) {
         toIterate = backend;

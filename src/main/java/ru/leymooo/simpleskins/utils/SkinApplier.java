@@ -2,6 +2,7 @@ package ru.leymooo.simpleskins.utils;
 
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.util.GameProfile;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -14,6 +15,15 @@ public class SkinApplier {
 
     public static void applySkin(Player player, GameProfile.Property property) {
         player.setGameProfileProperties(createProperties(player.getGameProfileProperties(), property));
+    }
+
+    public static boolean hasSkin(Player player) {
+        for (GameProfile.Property property : player.getGameProfileProperties()) {
+            if ("textures".equalsIgnoreCase(property.getName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static List<GameProfile.Property> createProperties(List<GameProfile.Property> original, GameProfile.Property property) {

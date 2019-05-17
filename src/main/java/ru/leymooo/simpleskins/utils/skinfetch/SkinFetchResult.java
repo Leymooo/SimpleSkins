@@ -1,6 +1,7 @@
 package ru.leymooo.simpleskins.utils.skinfetch;
 
 import com.velocitypowered.api.util.GameProfile;
+
 import java.util.Objects;
 import java.util.UUID;
 
@@ -23,32 +24,24 @@ public class SkinFetchResult implements FetchResult {
     }
 
     @Override
-    public int hashCode() {
-        int hash = 3;
-        hash = 17 * hash + Objects.hashCode(this.id);
-        hash = 17 * hash + Objects.hashCode(this.property);
-        return hash;
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SkinFetchResult that = (SkinFetchResult) o;
+        return Objects.equals(id, that.id) &&
+                Objects.equals(property, that.property);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        final FetchResult other = (FetchResult) obj;
-        if (!Objects.equals(this.id, other.getId())) {
-            return false;
-        }
-        if (!Objects.equals(this.property, other.getProperty())) {
-            return false;
-        }
-        return true;
+    public int hashCode() {
+        return Objects.hash(id, property);
     }
 
+    @Override
+    public String toString() {
+        return "SkinFetchResult{" +
+                "id=" + id +
+                ", property=" + property +
+                '}';
+    }
 }
