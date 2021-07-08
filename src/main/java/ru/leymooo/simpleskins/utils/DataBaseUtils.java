@@ -29,8 +29,10 @@ public class DataBaseUtils {
     private void connect() {
         try {
             Class.forName("org.h2.Driver");
-            this.connection = DriverManager.getConnection("jdbc:h2:." + File.separator + plugin.getDataDirectory().toString() + File.separator +
-                    "users;mode=MySQL;MULTI_THREADED=1;", null, null);
+            String url = "jdbc:h2:." + File.separator + plugin.getDataDirectory().toString() + File.separator +
+                    "users;mode=MySQL";
+            plugin.getLogger().info(url);
+            this.connection = DriverManager.getConnection(url, null, null);
             try (Statement st = this.connection.createStatement()) {
                 String sql = "CREATE TABLE IF NOT EXISTS `Users` ("
                         + "`Name` VARCHAR(16) NOT NULL PRIMARY KEY,"

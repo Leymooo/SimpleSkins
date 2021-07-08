@@ -47,9 +47,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.UUID;
 
-/**
- * @author mikim
- */
 public class SkinFetcher {
 
     private static final String UUID_URL = "https://api.ashcon.app/mojang/v2/uuid/";
@@ -84,7 +81,7 @@ public class SkinFetcher {
         try {
             Optional<FetchResult> result = object instanceof String ? getSkin((String) object) : getSkin((UUID) object);
             if (!result.isPresent()) {
-                player.sendMessage(plugin.deserialize("messages.working"));
+                player.sendMessage(plugin.deserialize("messages", "working"));
                 return Optional.empty();
             }
             return result;
@@ -93,7 +90,7 @@ public class SkinFetcher {
         } catch (IOException | JsonSyntaxException ex) {
             plugin.getLogger().error("Can not fetch skin", ex);
         }
-        player.sendMessage(plugin.deserialize("messages.skin-not-found"));
+        player.sendMessage(plugin.deserialize("messages", "skin-not-found"));
         return Optional.empty();
     }
 
