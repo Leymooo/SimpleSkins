@@ -1,7 +1,7 @@
 /*
- * This file is part of ChangeSkin, licensed under the MIT License (MIT).
+ * This file is part of Velocity, licensed under the MIT License (MIT).
  *
- * Copyright (c) games647 <https://github.com/games647/ChangeSkin>
+ * Copyright (c) VelocityPowered <https://github.com/VelocityPowered/Velocity>
  * Copyright (c) contributors
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -84,7 +84,7 @@ public class SkinFetcher {
         try {
             Optional<FetchResult> result = object instanceof String ? getSkin((String) object) : getSkin((UUID) object);
             if (!result.isPresent()) {
-                player.sendMessage(plugin.deserialize("messages.working"));
+                player.sendMessage(plugin.deserialize("messages", "working"));
                 return Optional.empty();
             }
             return result;
@@ -93,7 +93,7 @@ public class SkinFetcher {
         } catch (IOException | JsonSyntaxException ex) {
             plugin.getLogger().error("Can not fetch skin", ex);
         }
-        player.sendMessage(plugin.deserialize("messages.skin-not-found"));
+        player.sendMessage(plugin.deserialize("messages", "skin-not-found"));
         return Optional.empty();
     }
 

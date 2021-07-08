@@ -1,5 +1,6 @@
 package ru.leymooo.simpleskins;
 
+import com.google.common.reflect.TypeToken;
 import com.google.inject.Inject;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.PostLoginEvent;
@@ -9,11 +10,11 @@ import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
-import net.kyori.text.Component;
-import net.kyori.text.serializer.legacy.LegacyComponentSerializer;
-import net.md_5.bungee.config.Configuration;
-import net.md_5.bungee.config.ConfigurationProvider;
-import net.md_5.bungee.config.YamlConfiguration;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import ninja.leaping.configurate.ConfigurationNode;
+import ninja.leaping.configurate.objectmapping.ObjectMappingException;
+import ninja.leaping.configurate.yaml.YAMLConfigurationLoader;
 import org.slf4j.Logger;
 import ru.leymooo.simpleskins.command.SkinCommand;
 import ru.leymooo.simpleskins.utils.DataBaseUtils;
@@ -33,7 +34,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.*;
 
-@Plugin(id = "simpleskins", name = "SimpleSkins", version = "1.4",
+@Plugin(id = "simpleskins", name = "SimpleSkins", version = "1.5",
         description = "Simple skins restorer plugin for velocity",
         authors = "Leymooo")
 public class SimpleSkins {
@@ -45,7 +46,7 @@ public class SimpleSkins {
     private final DataBaseUtils dataBaseUtils;
     private SkinFetcher skinFetcher;
     private RoundIterator<FetchResult> defaultSkins;
-    private Configuration config;
+    private ConfigurationNode config;
 
     @Inject
     public SimpleSkins(ProxyServer server, Logger logger, @DataDirectory Path userConfigDirectory) {
@@ -68,8 +69,12 @@ public class SimpleSkins {
         }
         this.skinFetcher = new SkinFetcher(this, dataBaseUtils, new UuidFetchCache(this));
 
-        initDefaultSkins();
-        this.server.getCommandManager().register(new SkinCommand(this), "skin");
+        try {
+            initDefaultSkins();
+        } catch (Exception e) {
+            logger.warn("Failed to load default skins", e);
+        }
+        this.server.getCommandManager().register("skin", new SkinCommand(this));
         logger.info("SimpleSkins enabled");
     }
 
@@ -110,26 +115,29 @@ public class SimpleSkins {
 
     private boolean loadConfig() {
         File config = new File(dataDirectory.toFile(), "config.yml");
-        config.getParentFile().mkdir();
         try {
             if (!config.exists()) {
-                try (InputStream in = SimpleSkins.class.getClassLoader().getResourceAsStream("config.yml")) {
-                    Files.copy(in, config.toPath());
+                dataDirectory.toFile().mkdir();
+                if (!config.exists()) {
+                    try (InputStream in = SimpleSkins.class.getClassLoader().getResourceAsStream("config.yml")) {
+                        Files.copy(in, config.toPath());
+                    }
                 }
             }
-            this.config = ConfigurationProvider.getProvider(YamlConfiguration.class).load(config);
+            YAMLConfigurationLoader loader = YAMLConfigurationLoader.builder().setFile(config).setIndent(2).build();
+            this.config = loader.load();
         } catch (IOException ex) {
-            logger.error("Can not load or save config", ex);
+            logger.error("Could not load or save config", ex);
             return false;
         }
         return true;
     }
 
-    private void initDefaultSkins() {
+    private void initDefaultSkins() throws ObjectMappingException {
         logger.info("Loading default skins");
         List<FetchResult> skins = new ArrayList<>();
         List<Future<?>> futures = new ArrayList<>();
-        for (String user : config.getStringList("default-skins")) {
+        for (String user : config.getNode("default-skins").getList(TypeToken.of(String.class))) {
             futures.add(service.submit(() -> skinFetcher.fetchSkin(user, false)
                     .ifPresent(skins::add)));
         }
@@ -152,7 +160,7 @@ public class SimpleSkins {
         return server;
     }
 
-    public Configuration getConfig() {
+    public ConfigurationNode getConfig() {
         return config;
     }
 
@@ -172,7 +180,7 @@ public class SimpleSkins {
         return skinFetcher;
     }
 
-    public Component deserialize(String configKey) {
-        return LegacyComponentSerializer.INSTANCE.deserialize(config.getString(configKey), '&');
+    public Component deserialize(String... configKey) {
+        return LegacyComponentSerializer.legacyAmpersand().deserialize(config.getNode(configKey).getString());
     }
 }
